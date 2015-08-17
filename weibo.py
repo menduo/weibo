@@ -21,6 +21,12 @@ import time
 
 import requests
 
+def _get_requests_parmas(kwdict):
+    _requests = kwdict.pop("_requests", None)
+    if not isinstance(_requests, dict):
+        _requests = {}
+    return _requests
+
 
 class Client(object):
     def __init__(self, api_key, api_secret, redirect_uri, token=None,
@@ -59,7 +65,22 @@ class Client(object):
         else:
             return False
 
-    def set_code(self, authorization_code):
+    def _send_request(func, url,*args,**kwargs):
+        try:
+            res = func(url,*args,**kwargs)
+        except Exception as e:
+            pass
+
+        error = None
+        res = self._parse_resp(res)
+        if resp.get("error_coe"):
+            res = None
+            error = resp
+
+        return res,error
+
+
+    def set_code(self, authorization_code,**kwargs):
         """Activate client by authorization_code.
         """
         params = {
@@ -69,12 +90,17 @@ class Client(object):
             'code': authorization_code,
             'redirect_uri': self.redirect_uri
         }
-        res = requests.post(self.token_url, data=params)
-        token = json.loads(res.text)
-        self._assert_error(token)
+        _requests = _get_requests_parmas(kwargs)
+        res = requests.post(self.token_url, data=params,**_requests)
 
+        token = self._parse_resp(res)
+        if token.get("error"):
+            return None
+
+        token = json.loads(res.text)
         token[u'expires_at'] = int(time.time()) + int(token.pop(u'expires_in'))
         self.set_token(token)
+        return token
 
     def set_token(self, token):
         """Directly activate client by access_token.
@@ -94,6 +120,17 @@ class Client(object):
             raise RuntimeError("{0} {1}".format(
                 d.get("error_code", ""), d.get("error", "")))
 
+    def _parse_resp(self, resp):
+        try:
+            resp = json.load(resp.text)
+            return resp
+        except ValueError:
+            error = {
+                "error_code": "9876543210",
+                "error": "No JSON object could be decoded"
+            }
+            return error
+
     def get(self, uri, **kwargs):
         """Request resource by get method.
         """
@@ -102,9 +139,8 @@ class Client(object):
         # for username/password client auth
         if self.session.auth:
             kwargs['source'] = self.client_id
-
-        res = json.loads(self.session.get(url, params=kwargs).text)
-        self._assert_error(res)
+        _requests = _get_requests_parmas(kwargs)
+        res = json.loads(self.session.get(url, params=kwargs,**_requests).text)
         return res
 
     def post(self, uri, **kwargs):
@@ -116,12 +152,17 @@ class Client(object):
         if self.session.auth:
             kwargs['source'] = self.client_id
 
-        if "pic" not in kwargs:
-            res = json.loads(self.session.post(url, data=kwargs).text)
-        else:
+        files = None
+        if kwargs.get("pic"):
             files = {"pic": kwargs.pop("pic")}
-            res = json.loads(self.session.post(url,
-                                               data=kwargs,
-                                               files=files).text)
-        self._assert_error(res)
+
+        _requests = _get_requests_parmas(kwargs)
+
+        res = json.loads(self.session.post(url,
+                                           data=kwargs,
+                                           files=files, **_requests).text)
+        try:
+            self._assert_error(res)
+        except RuntimeError:
+            return None
         return res
