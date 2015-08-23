@@ -4,14 +4,22 @@ Folk 自 https://github.com/lxyu/weibo 并做了如下修改：
 
 * 调用接口时可传入参数 requests
 * 多返回值：`res, error = c.get('users/show',uid=12345)`
+* 使用 requests 进行相关网络操作，因而相对于官方的 sdk，极大的简化了代码，并提高了可读性。
 
-调用：
+# 安装
+
+```bash
+git clone https://github.com/shajiquan/weibo
+```
+
+# 调用：
 
 ```python
 _reqs = {
     "timeout":(1,2)
 }
-
+from weibo import Client
+c = Client(API_KEY, API_SECRET, REDIRECT_URI)
 res, error = c.get('users/show', uid=1282440983,_reqs=_reqs)
 
 if error:
@@ -19,7 +27,8 @@ if error:
 
 ```
 
-使用 requests 进行相关网络操作，因而相对于官方的 sdk，极大的简化了代码，并提高了可读性。
+下文是 https://github.com/lxyu/weibo 的原文：
+
 
 ## 安装
 
