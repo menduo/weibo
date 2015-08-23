@@ -6,6 +6,10 @@ Folk 自 https://github.com/lxyu/weibo 并做了如下修改：
 * 多返回值：`res, error = c.get('users/show',uid=12345)`
 * 使用 requests 进行相关网络操作，因而相对于官方的 sdk，极大的简化了代码，并提高了可读性。
 
+# 注意事项
+
+因为我改成了多返回值，因此，在调用时不能再像原作者那样只使用一个返回值。
+
 # 安装
 
 ```bash
