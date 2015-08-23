@@ -21,11 +21,54 @@ import time
 
 import requests
 
+from weibos.rescodes import resp_codes
+
+
 def _get_requests_parmas(kwdict):
-    _requests = kwdict.pop("_requests", None)
+    _requests = kwdict.pop("_reqs", None)
     if not isinstance(_requests, dict):
         _requests = {}
     return _requests
+
+
+def _send_request(func, url, **kwargs):
+    error = None
+    resp = None
+
+    _requests = _get_requests_parmas(kwargs)
+    kwargs.update(_requests)
+    try:
+        resp = func(url, **kwargs)
+    except Exception as e:
+        error = {
+            "error_code": 9876543210,
+            "error": str(e),
+            "error_cn": "HTTP 请求/读取失败"
+        }
+
+    if error:
+        return None, error
+
+    resp = _parse_resp(resp)
+    if isinstance(resp, dict) and resp.get("error_code"):
+        error_code = str(resp.get("error_code"))
+        error = resp
+        resp = None
+        error['error_cn'] = resp_codes.get(error_code, "新浪微博接口未知错误")
+
+    return resp, error
+
+
+def _parse_resp(resp):
+    try:
+        resp = json.loads(resp.text)
+        return resp
+    except Exception as e:
+        error = {
+            "error_code": 9876543211,
+            "error": str(e)
+        }
+        return error
 
 
 class Client(object):
@@ -65,22 +108,7 @@ class Client(object):
         else:
             return False
 
-    def _send_request(func, url,*args,**kwargs):
-        try:
-            res = func(url,*args,**kwargs)
-        except Exception as e:
-            pass
-
-        error = None
-        res = self._parse_resp(res)
-        if resp.get("error_coe"):
-            res = None
-            error = resp
-
-        return res,error
-
-
-    def set_code(self, authorization_code,**kwargs):
+    def set_code(self, authorization_code, **kwargs):
         """Activate client by authorization_code.
         """
         params = {
@@ -90,17 +118,20 @@ class Client(object):
             'code': authorization_code,
             'redirect_uri': self.redirect_uri
         }
-        _requests = _get_requests_parmas(kwargs)
-        res = requests.post(self.token_url, data=params,**_requests)
 
-        token = self._parse_resp(res)
-        if token.get("error"):
-            return None
+        rebuilds = {}
+        rebuilds["_reqs"] = _get_requests_parmas(kwargs)
+        rebuilds["data"] = params
 
-        token = json.loads(res.text)
-        token[u'expires_at'] = int(time.time()) + int(token.pop(u'expires_in'))
+        token, error = _send_request(func=requests.post, url=self.token_url, **rebuilds)
+
+        if error and error.get("error"):
+            return None, error
+
+        token[u'expires_at'] = int(time.time()) + int(token.get(u'expires_in'))
         self.set_token(token)
-        return token
+
+        return token, None
 
     def set_token(self, token):
         """Directly activate client by access_token.
@@ -112,24 +143,7 @@ class Client(object):
         self.expires_at = token['expires_at']
 
         self.session.params = {'access_token': self.access_token}
-
-    def _assert_error(self, d):
-        """Assert if json response is error.
-        """
-        if 'error_code' in d and 'error' in d:
-            raise RuntimeError("{0} {1}".format(
-                d.get("error_code", ""), d.get("error", "")))
-
-    def _parse_resp(self, resp):
-        try:
-            resp = json.load(resp.text)
-            return resp
-        except ValueError:
-            error = {
-                "error_code": "9876543210",
-                "error": "No JSON object could be decoded"
-            }
-            return error
+        return token
 
     def get(self, uri, **kwargs):
         """Request resource by get method.
@@ -139,9 +153,14 @@ class Client(object):
         # for username/password client auth
         if self.session.auth:
             kwargs['source'] = self.client_id
-        _requests = _get_requests_parmas(kwargs)
-        res = json.loads(self.session.get(url, params=kwargs,**_requests).text)
-        return res
+
+        rebuilds = {}
+        rebuilds["_reqs"] = _get_requests_parmas(kwargs)
+        rebuilds["params"] = kwargs
+
+        res, error = _send_request(func=self.session.get, url=url, **rebuilds)
+
+        return res, error
 
     def post(self, uri, **kwargs):
         """Request resource by post method.
@@ -156,13 +175,11 @@ class Client(object):
         if kwargs.get("pic"):
             files = {"pic": kwargs.pop("pic")}
 
-        _requests = _get_requests_parmas(kwargs)
+        rebuilds = {}
+        rebuilds["_reqs"] = _get_requests_parmas(kwargs)
 
-        res = json.loads(self.session.post(url,
-                                           data=kwargs,
-                                           files=files, **_requests).text)
-        try:
-            self._assert_error(res)
-        except RuntimeError:
-            return None
-        return res
+        rebuilds["data"] = kwargs
+        rebuilds["files"] = files
+
+        res, error = _send_request(func=self.session.post, url=url, **rebuilds)
+        return res, error
