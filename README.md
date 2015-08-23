@@ -29,6 +29,11 @@ if error:
 
 下文是 https://github.com/lxyu/weibo 的原文：
 
+---
+
+并不十分华丽的分隔线
+
+---
 
 ## 安装
 
