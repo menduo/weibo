@@ -4,7 +4,6 @@ Folk 自 https://github.com/lxyu/weibo 并做了如下修改：
 
 * 调用接口时可传入参数 requests
 * 多返回值：`res, error = c.get('users/show',uid=12345)`
-* 使用 requests 进行相关网络操作，因而相对于官方的 sdk，极大的简化了代码，并提高了可读性。
 
 # 注意事项
 
@@ -38,6 +37,8 @@ if error:
 并不十分华丽的分隔线
 
 ---
+
+使用 requests 进行相关网络操作，因而相对于官方的 sdk，极大的简化了代码，并提高了可读性。
 
 ## 安装
 
